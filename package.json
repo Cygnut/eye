@@ -6,11 +6,17 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Cygnut/eye.git"
-  },  
+  },
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "cygnut",
-  "license": "ISC"
+  "dependencies": {
+    "fs-extra": "^0.30.0",
+    "github": "^5.3.3",
+    "moment": "^2.15.2",
+    "util": "^0.10.3",
+    "winston": "^2.2.0"
+  }
 }
