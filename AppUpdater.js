@@ -14,7 +14,7 @@ function AppUpdater(app)
 	this.app = app;
 	
 	let appsPath = path.join(__dirname, '../', 'apps');
-	this.appDir = path.join(apps_path, this.app.id);
+	this.appDir = path.join(appsPath, this.app.id);
 	this.packageJson = path.join(this.appDir, 'package.json');
 	this.eyePath = path.join(this.appDir, '.eye');
 	this.processName = `eye-${this.app.id}`;
@@ -43,10 +43,7 @@ AppUpdater.prototype.ensurePackageDirectoryExists = function(next)
 	log.info(`Ensuring path exists for ${this.app.id} at ${this.appDir}.`);
 	fs.ensureDir(this.appDir, function(err) {
 		if (err)
-		{
-			log.error(`Failed to create directory ${this.appDir} for package ${this.app.id}`);
-			return next(err);
-		}
+			return next(`Failed to create directory ${this.appDir}.`);
 		else return next();
 	});
 }
@@ -62,6 +59,7 @@ AppUpdater.prototype.getCurrentEyeFile = function(next)
 	}
 	catch (e)
 	{
+		log.warn(`Failed to read .eye file for app ${this.app.id} - non-fatal.`)
 		return next(null);	// Couldn't find/read the .eye file - that's fine - return nothing.
 	}
 }
@@ -75,40 +73,41 @@ AppUpdater.prototype.getCurrentEyeFile = function(next)
  */
 AppUpdater.prototype.fetchRequiredTag = function(next)
 {
-	if (this.app.repo.tag.latest)
+	let buildTag = function(t) {
+		return {
+			name: t.name,
+			zip: t.zipball_url,
+			sha: t.commit.sha
+		};
+	}
+	
+	let repo = this.app.repo;
+	
+	if (repo.tag.latest)
 	{
 		// Even though this is paginated, it is provided in order from latest to oldest, 
 		// so just get the first item. If no items, then no tags exist.
 		this.github.gitdata.getTags({
-			owner: this.app.repo.owner,
-			repo: this.app.repo.name
+			owner: repo.owner,
+			repo: repo.name
 		}, function(err, tags) {
-			if (err) return next(err);
-			if (!tags.length) return next('No available tags for package.');
+			if (err) return next(`Failed to get latest tag from github for ${repo.owner}/${repo.name} with error ${err}.`);
+			if (!tags.length) return next(`No available tags for package ${repo.owner}/${repo.name}.`);
 			
-			let t = tags[0];
-			return next(null, {
-				name: t.name,
-				zip: t.zipball_url,
-				sha: t.commit.sha
-			});
+			return next(null, buildTag(tags[0]));
 		});
 	}
 	else
 	{
 		// TODO: test this one.
 		this.github.gitdata.getTag({
-			owner: this.app.repo.owner,
-			repo: this.app.repo.name,
-			sha: this.app.repo.tag.sha
+			owner: repo.owner,
+			repo: repo.name,
+			sha: repo.tag.sha
 		}, function(err, t) {
-			if (err) return next(err);
+			if (err) return next(`Failed to get specific tag ${repo.tag.sha} from github for ${repo.owner}/${repo.name} with error ${err}.`);
 			
-			return next(null, {
-				name: t.name,
-				zip: t.zipball_url,
-				sha: t.commit.sha
-			});
+			return next(null, buildTag(t));
 		});
 	}
 }
@@ -117,29 +116,18 @@ AppUpdater.prototype.fetchRequiredTag = function(next)
 */
 AppUpdater.prototype.installRequiredPackage = function(eye, tag, next)
 {
-	npmUpdate = function(next) {
-		// npm update updates all installed node_modules, in addition to installing any missing ones.
-		// (so it does npm install plus more good stuff)
-		let cmd = 'npm';
-		let args = 'update';
-		new Spawner()
-			.command(cmd)
-			.args(args)
-			.error(function(err) 
-			{ 
-				return next(err, null);
-			}.bind(this))
-			.close(function(code, stdout, stderr) 
-			{
-				if (code !== 0 || stderr)
-					return next(`${cmd} ${args.toString()} terminated with code ${code}, stderr ${stderr}`);
-				
-				return next(null, stdout);
-			}.bind(this))
-			.run();
-	}.bind(this);
+	let prepareDir = function(appDir, eye, next)
+	{
+		// If there is no existing package, clean up the directory first.
+		return 
+			!eye
+			?
+			fs.emptyDir(appDir, next);
+			:
+			return next();
+	}
 	
-	download = function(url, dest, next) {
+	let download = function(url, dest, next) {
 		// Execute the complete sequence of operations.
 		// We want this to truncate any existing file.
 		// See http://stackoverflow.com/questions/12906694/fs-createwritestream-does-not-immediately-create-file
@@ -166,46 +154,81 @@ AppUpdater.prototype.installRequiredPackage = function(eye, tag, next)
 				});
 			});
 		});
-	}.bind(this);
+	};
 	
-	install = function(tag, next) {
-		// Download the required package.
-		download(tag.zip, this.zipPath, function() {
-			
-			try
-			{
-				// Extract the required package.
-				let zip = new Zip(zipFile);
-				zip.extractAllTo(this.appDir, true /*Overwrite*/);	// this can throw.
-				// Now do an npm install in this directory.
-				npmUpdate(function(err) {
-					if (err)
-						return next(err);
-					else
-						return next();
-				});
-			}
-			catch (err)
-			{
+	let unzip = function(path, dest, next) {
+		try
+		{
+			// Extract the required package.
+			new Zip(path).extractAllTo(dest, true /*Overwrite*/);	// this can throw.
+			return next();
+		}
+		catch (err)
+		{
+			return next(err);
+		}
+	};
+	
+	let npmUpdate = function(dir, next) {
+		// npm update updates all installed node_modules, in addition to installing any missing ones.
+		// (so it does npm install plus more good stuff)
+		let cmd = 'npm';
+		let args = 'update';
+		new Spawner()
+			.command(cmd)
+			.args(args)
+			.options({
+				cwd: dir
+			})
+			.error(function(err) 
+			{ 
 				return next(err);
-			}
-		});
-	}.bind(this);
+			}.bind(this))
+			.close(function(code, stdout, stderr)
+			{
+				if (code !== 0 || stderr)
+					return next(`${cmd} ${args.toString()} terminated with code ${code}, stderr ${stderr}`);
+				
+				return next(null, stdout);
+			}.bind(this))
+			.run();
+	};
+	
 	
 	// If there's already a package installed, and it has the matching sha, 
-	// then we don't need to do any further installation.
+	// then we don't need to do any further installation - we're done.
 	if (eye && eye.sha === tag.sha)
 		return next();
 	
-	return
-		!eye	// If there is no existing package, clean up the directory first.
-		?
-		fs.emptyDir(this.appDir, function(err) {
-			if (err) return next(err);
-			install(tag, next);
-		})
-		:
-		install(tag, next);
+	return async.waterfall([
+		function(next) {
+				prepareDir(this.appDir, eye, function(err) {
+					if (err) return next(`Failed to prepare directory ${this.appDir} with error ${err}.`);
+					return next();
+				}.bind(this));
+			}.bind(this),
+		function(next) { 
+				download(tag.zip, this.zipPath, function(err) {
+					if (err) return next(`Failed to download package ${tag.zip} with error ${err}.`);
+					return next();
+				});
+			}.bind(this),
+		function(next) { 
+				unzip(this.zipPath, this.appDir, function(err) {
+					if (err) return next(`Failed to unzip package ${this.zipPath} with error ${err}.`);
+					return next();
+				});
+			}.bind(this),
+		function(next) { 
+				npmUpdate(this.appDir, function(err) {
+					if (err) return next(`Failed to npm update directory ${this.appDir} with error ${err}`);
+					return next();
+				});
+			}.bind(this)
+	], 
+	function(err, result) {
+		return next(err);
+	}.bind(this));
 }
 
 /*
@@ -213,6 +236,9 @@ AppUpdater.prototype.installRequiredPackage = function(eye, tag, next)
 */
 AppUpdater.prototype.updateEyeFile = function(eye, tag, next)
 {
+	if (!eye)
+		eye = {};
+	
 	eye.sha = tag.sha;
 	try
 	{
@@ -221,7 +247,7 @@ AppUpdater.prototype.updateEyeFile = function(eye, tag, next)
 	}
 	catch (err)
 	{
-		return next(err);
+		return next(`Failed to update .eye file with error ${err}`);
 	}
 }
 
@@ -240,19 +266,19 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 	pm2.connect(function(err) {
 		
 		if (err)
-			return next(err);
+			return next(`Failed to connect to pm2 with error ${err}`);
 		
 		pm2.list(function(err, processes) {
 			
 			if (err)
 			{
 				pm2.disconnect();
-				return next(err);
+				return next(`Failed to get pm2 processes with error ${err}`);
 			}
 			
 			let process = processes.find(function(p) {
 				return p.name === this.processName;
-			});
+			}.bind(this));
 			
 			if (process)
 			{
@@ -261,8 +287,10 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 				{
 					pm2.restart(this.processName, function(err) {
 						pm2.disconnect();
-						return next(err);
-					});
+						if (err)
+							return next(`Failed to restart pm2 process with error ${err}`);
+						else return next();
+					}.bind(this));
 				}
 			}
 			else
@@ -285,18 +313,20 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 					if (err) 
 					{
 						pm2.disconnect();
-						return next(err);
+						return next(`Failed to start pm2 app with error ${err}`);
 					}
 					
 					// Ensure all listed processes are persisted.
 					pm2.dump(function(err, process) {
 						pm2.disconnect();
-						return next(err);
-					});
-				});
+						if (err)
+							return next(`Failed to persist pm2 process with error ${err}`);
+						else return next();
+					}.bind(this));
+				}.bind(this));
 			}
-		});
-	});
+		}.bind(this));
+	}.bind(this));
 }
 
 /*
