@@ -1,8 +1,11 @@
+'use strict'
+
 const
 	async = require('async'),
 	Spawner = require('./Spawner'),
 	fs = require('fs-extra'),
-	Zip = require("adm-zip"),
+	Zip = require('adm-zip'),
+	https = require('https'),
 	path = require('path'),
 	log = require('winston'),
 	GitHubApi = require('github'),
@@ -25,7 +28,7 @@ function AppUpdater(app)
 		debug: true,
 		protocol: "https",
 		host: "api.github.com", // should be api.github.com for GitHub 
-		pathPrefix: "/api/v3", // for some GHEs; none for GitHub 
+		//pathPrefix: "/api/v3", // for some GHEs; none for GitHub 
 		headers: {
 			"user-agent": "eye" // GitHub is happy with a unique user agent 
 		},
@@ -37,8 +40,10 @@ function AppUpdater(app)
 /*
 	next = function(err)
  */
-AppUpdater.prototype.ensurePackageDirectoryExists = function(next)
+AppUpdater.prototype.ensureAppDirectoryExists = function(next)
 {
+	log.info(`Ensuring app directory exists.`);
+	
 	// Ensure this path exists.
 	log.info(`Ensuring path exists for ${this.app.id} at ${this.appDir}.`);
 	fs.ensureDir(this.appDir, function(err) {
@@ -51,8 +56,10 @@ AppUpdater.prototype.ensurePackageDirectoryExists = function(next)
 /*
 	next = function(err, eyeFile)
 */
-AppUpdater.prototype.getCurrentEyeFile = function(next)
+AppUpdater.prototype.getEyeFile = function(next)
 {
+	log.info(`Loading .eye file`);
+	
 	try
 	{
 		return next(null, fs.readJsonSync(this.eyePath));
@@ -68,77 +75,89 @@ AppUpdater.prototype.getCurrentEyeFile = function(next)
 	next = function(err, tag = {
 		name,
 		zip,
-		sha
+		id
 	})
  */
-AppUpdater.prototype.fetchRequiredTag = function(next)
+AppUpdater.prototype.fetchRequiredRelease = function(next)
 {
-	let buildTag = function(t) {
+	log.info(`Fetching required release.`);
+	
+	let buildRelease = function(r) {
 		return {
-			name: t.name,
-			zip: t.zipball_url,
-			sha: t.commit.sha
+			name: r.name,
+			zip: r.zipball_url,
+			id: r.id
 		};
 	}
 	
 	let repo = this.app.repo;
 	
-	if (repo.tag.latest)
+	if (!repo.release.id)
 	{
+		log.info(`Getting latest release.`);
+		
 		// Even though this is paginated, it is provided in order from latest to oldest, 
 		// so just get the first item. If no items, then no tags exist.
-		this.github.gitdata.getTags({
+		this.github.repos.getLatestRelease({
 			owner: repo.owner,
 			repo: repo.name
-		}, function(err, tags) {
-			if (err) return next(`Failed to get latest tag from github for ${repo.owner}/${repo.name} with error ${err}.`);
-			if (!tags.length) return next(`No available tags for package ${repo.owner}/${repo.name}.`);
+		}, function(err, release) {
+			log.info(`Gotten latest release.`);
 			
-			return next(null, buildTag(tags[0]));
+			if (err) return next(`Failed to get latest release from github for ${repo.owner}/${repo.name} with error ${err}.`);
+			//if (!release) return next(`No available latest release for package ${repo.owner}/${repo.name}.`);
+			
+			return next(null, buildRelease(release));
 		});
 	}
 	else
 	{
+		log.info(`Getting specific release.`);
+		
 		// TODO: test this one.
-		this.github.gitdata.getTag({
+		this.github.repos.getRelease({
 			owner: repo.owner,
 			repo: repo.name,
-			sha: repo.tag.sha
-		}, function(err, t) {
-			if (err) return next(`Failed to get specific tag ${repo.tag.sha} from github for ${repo.owner}/${repo.name} with error ${err}.`);
+			id: repo.release.id
+		}, function(err, release) {
+			log.info(`Gotten specific release.`);
 			
-			return next(null, buildTag(t));
+			if (err) return next(`Failed to get specific release ${repo.release.id} from github for ${repo.owner}/${repo.name} with error ${err}.`);
+			
+			return next(null, buildRelease(release));
 		});
 	}
 }
 /*
 	next = function(err)
 */
-AppUpdater.prototype.installRequiredPackage = function(eye, tag, next)
+AppUpdater.prototype.installPackage = function(eye, tag, next)
 {
-	let prepareDir = function(appDir, eye, next)
-	{
+	log.info(`Installing required package.`);
+	
+	let prepareDir = function(appDir, eye, next) {
+		log.info(`Preparing install directory ${appDir} with cleaning ${eye ? 'off' : 'on'}.`);
 		// If there is no existing package, clean up the directory first.
-		return 
-			!eye
-			?
+		if (!eye)
 			fs.emptyDir(appDir, next);
-			:
-			return next();
+		else return next();
 	}
 	
 	let download = function(url, dest, next) {
+		
+		log.info(`Downloading package.`);
+		
 		// Execute the complete sequence of operations.
 		// We want this to truncate any existing file.
 		// See http://stackoverflow.com/questions/12906694/fs-createwritestream-does-not-immediately-create-file
 		let file = fs.createWriteStream(dest); // The default flag used either creates/truncates. Good :)
 		
-		let request = http.get(url, function (response) {
+		let request = https.get(url, function (response) {
 			
 			let statusCode = response.statusCode;
 			
 			if (statusCode !== 200)
-				return next(`Failed to get zip from ${url} with status code ${statusCode}.`);
+				return next(`Failed to download from ${url} with status code ${statusCode}.`);
 			
 			response.pipe(file);
 			
@@ -157,6 +176,9 @@ AppUpdater.prototype.installRequiredPackage = function(eye, tag, next)
 	};
 	
 	let unzip = function(path, dest, next) {
+		
+		log.info(`Unzipping package.`);
+		
 		try
 		{
 			// Extract the required package.
@@ -170,6 +192,9 @@ AppUpdater.prototype.installRequiredPackage = function(eye, tag, next)
 	};
 	
 	let npmUpdate = function(dir, next) {
+		
+		log.info(`npm updating package.`);
+		
 		// npm update updates all installed node_modules, in addition to installing any missing ones.
 		// (so it does npm install plus more good stuff)
 		let cmd = 'npm';
@@ -234,12 +259,14 @@ AppUpdater.prototype.installRequiredPackage = function(eye, tag, next)
 /*
 	next = function(err)
 */
-AppUpdater.prototype.updateEyeFile = function(eye, tag, next)
+AppUpdater.prototype.updateEyeFile = function(eye, release, next)
 {
+	log.info(`Updating .eye file.`);
+	
 	if (!eye)
 		eye = {};
 	
-	eye.sha = tag.sha;
+	eye.release_id = release.id;
 	try
 	{
 		fs.writeJsonSync(this.eyePath, eye);
@@ -256,6 +283,8 @@ AppUpdater.prototype.updateEyeFile = function(eye, tag, next)
 */
 AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 {
+	log.info(`Ensuring app running in pm2.`);
+	
 	// Now we just need to ensure that the app is saved and running in pm2.
 	
 	// Check if the app is in pm2's list.
@@ -344,22 +373,22 @@ AppUpdater.prototype.run = function(next)
 	*/
 	async.waterfall([
 		function(next) { 
-			ensurePackageDirectoryExists((err) => next(err)); 
+			this.ensureAppDirectoryExists((err) => next(err)); 
 			}.bind(this),
 		function(next) { 
-			getEyeFile((err, eye) => next(eye)); 
+			this.getEyeFile((err, eye) => next(err, eye)); 
 			}.bind(this),
 		function(eye, next) { 
-			fetchRequiredTag((err, tag) => next(err, eye, tag)); 
+			this.fetchRequiredRelease((err, release) => next(err, eye, release)); 
 			}.bind(this),
-		function(eye, tag, next) { 
-			installRequiredPackage(eye, tag, (err) => next(err, eye, tag)); 
+		function(eye, release, next) { 
+			this.installPackage(eye, release, (err) => next(err, eye, release)); 
 			}.bind(this),
-		function(eye, tag, next) { 
-			updateEyeFile(eye, tag, (err) => next(err)); 
+		function(eye, release, next) { 
+			this.updateEyeFile(eye, release, (err) => next(err)); 
 			}.bind(this),
 		function(next) { 
-			ensureAppRunningInPm2((err) => next(err)); 
+			this.ensureAppRunningInPm2((err) => next(err)); 
 			}.bind(this)
 	], 
 	function(err, result) {

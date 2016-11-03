@@ -1,4 +1,4 @@
-
+'use strict'
 
 // TODO: Allow configurable check period. Should be quite high - like only once every 10 mins.
 // TODO: 
@@ -29,27 +29,30 @@ require('./Logging').init();
 
 var POLL_PERIOD = 10 * 60 * 1000;
 
+function runLoop(config)
+{
+	async.mapSeries(
+		config.apps, 
+		function(app, next) {
+			new AppUpdater(app).run(function(err) {
+				if (err)
+					log.error(`Failed to ensure ${app.id} up to date, due to error ${err}.`);
+				return next();	// trap errors.
+			});
+		},
+		function(err, results)
+		{
+			log.info(`Finished installing apps.`);
+			// When done, schedule another execution.
+			setTimeout(runLoop, POLL_PERIOD)
+		});
+}
+
 Config.load(function(err, config) {
 	if (err)
 		return log.error(`No configuration could be loaded from ${Config.path}`);
 	
-	setTimeout(function() {
-		
-		async.mapSeries(
-			config.apps, 
-			function(app, next) {
-				new AppUpdater(app).run(function(err) {
-					if (err)
-						log.error(`Failed to ensure ${this.app.id} up to date, due to error ${err}.`);
-					return next();	// trap errors.
-				});
-			},
-			function(err, results)
-			{
-				log.info(`Finished installing apps.`);
-			});
-			
-	}, POLL_PERIOD);
+	runLoop(config);
 });
 
 // TODO: Load from disk. Update on change from web interface.
