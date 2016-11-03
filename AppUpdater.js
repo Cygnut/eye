@@ -5,7 +5,7 @@ const
 	Spawner = require('./Spawner'),
 	fs = require('fs-extra'),
 	Zip = require('adm-zip'),
-	https = require('https'),
+	request = require('request'),
 	path = require('path'),
 	log = require('winston'),
 	GitHubApi = require('github'),
@@ -152,25 +152,26 @@ AppUpdater.prototype.installPackage = function(eye, tag, next)
 		// See http://stackoverflow.com/questions/12906694/fs-createwritestream-does-not-immediately-create-file
 		let file = fs.createWriteStream(dest); // The default flag used either creates/truncates. Good :)
 		
-		let request = https.get(url, function (response) {
-			
-			let statusCode = response.statusCode;
-			
-			if (statusCode !== 200)
-				return next(`Failed to download from ${url} with status code ${statusCode}.`);
-			
-			response.pipe(file);
-			
-			file.on('error', function(err) {
-				file.close(function () {
-					return next(err);
-				});
+		request({
+			url: url,
+			headers: {
+				'User-Agent': 'eye'
+				}
+			})
+			.pipe(file)
+			.on('error', function(err) {
+				return next(`Failed to download from ${url} with error ${err}.`);
 			});
-			
-			file.on('finish', function() {
-				file.close(function () {
-					return next();
-				});
+		
+		file.on('error', function(err) {
+			file.close(function () {
+				return next(err);
+			});
+		});
+		
+		file.on('finish', function() {
+			file.close(function () {
+				return next();
 			});
 		});
 	};
@@ -178,7 +179,6 @@ AppUpdater.prototype.installPackage = function(eye, tag, next)
 	let unzip = function(path, dest, next) {
 		
 		log.info(`Unzipping package.`);
-		
 		try
 		{
 			// Extract the required package.
@@ -198,23 +198,19 @@ AppUpdater.prototype.installPackage = function(eye, tag, next)
 		// npm update updates all installed node_modules, in addition to installing any missing ones.
 		// (so it does npm install plus more good stuff)
 		let cmd = 'npm';
-		let args = 'update';
+		let args = [ 'update' ];
 		new Spawner()
 			.command(cmd)
 			.args(args)
 			.options({
 				cwd: dir
 			})
-			.error(function(err) 
-			{ 
-				return next(err);
-			}.bind(this))
 			.close(function(code, stdout, stderr)
 			{
+				log.info(`npm update terminated.`);
 				if (code !== 0 || stderr)
 					return next(`${cmd} ${args.toString()} terminated with code ${code}, stderr ${stderr}`);
-				
-				return next(null, stdout);
+				return next();
 			}.bind(this))
 			.run();
 	};
@@ -236,19 +232,19 @@ AppUpdater.prototype.installPackage = function(eye, tag, next)
 				download(tag.zip, this.zipPath, function(err) {
 					if (err) return next(`Failed to download package ${tag.zip} with error ${err}.`);
 					return next();
-				});
+				}.bind(this));
 			}.bind(this),
 		function(next) { 
 				unzip(this.zipPath, this.appDir, function(err) {
 					if (err) return next(`Failed to unzip package ${this.zipPath} with error ${err}.`);
 					return next();
-				});
+				}.bind(this));
 			}.bind(this),
 		function(next) { 
 				npmUpdate(this.appDir, function(err) {
 					if (err) return next(`Failed to npm update directory ${this.appDir} with error ${err}`);
 					return next();
-				});
+				}.bind(this));
 			}.bind(this)
 	], 
 	function(err, result) {
