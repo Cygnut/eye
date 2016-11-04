@@ -1,0 +1,14 @@
+html
+	head
+		title= "Hookshot API"
+	body
+		h1= "Hookshot API"
+		table
+			tr
+				th= "Path"
+				th= "Method"
+			each e in endpoints
+				tr
+					td
+						a(href=e.path)= e.path
+					td= e.method
