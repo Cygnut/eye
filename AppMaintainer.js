@@ -12,7 +12,7 @@ const
 	pm2 = require('pm2');
 
 
-function AppUpdater(appsPath, app)
+function AppMaintainer(appsPath, app)
 {
 	this.app = app;
 	
@@ -39,7 +39,7 @@ function AppUpdater(appsPath, app)
 /*
 	next = function(err)
  */
-AppUpdater.prototype.ensureAppDirectoryExists = function(next)
+AppMaintainer.prototype.ensureAppDirectoryExists = function(next)
 {
 	log.info(`Ensuring app directory exists.`);
 	
@@ -55,7 +55,7 @@ AppUpdater.prototype.ensureAppDirectoryExists = function(next)
 /*
 	next = function(err, eyeFile)
 */
-AppUpdater.prototype.getEyeFile = function(next)
+AppMaintainer.prototype.getEyeFile = function(next)
 {
 	log.info(`Loading .eye file from ${this.eyePath}`);
 	
@@ -77,7 +77,7 @@ AppUpdater.prototype.getEyeFile = function(next)
 		id
 	})
  */
-AppUpdater.prototype.fetchRequiredRelease = function(next)
+AppMaintainer.prototype.fetchRequiredRelease = function(next)
 {
 	log.info(`Fetching required release.`);
 	
@@ -130,7 +130,7 @@ AppUpdater.prototype.fetchRequiredRelease = function(next)
 /*
 	next = function(err)
 */
-AppUpdater.prototype.installPackage = function(eye, release, next)
+AppMaintainer.prototype.installPackage = function(eye, release, next)
 {
 	let self = this;
 	log.info(`Installing required package.`);
@@ -276,7 +276,7 @@ AppUpdater.prototype.installPackage = function(eye, release, next)
 /*
 	next = function(err)
 */
-AppUpdater.prototype.updateEyeFile = function(eye, release, next)
+AppMaintainer.prototype.updateEyeFile = function(eye, release, next)
 {
 	log.info(`Updating .eye file.`);
 	
@@ -298,7 +298,7 @@ AppUpdater.prototype.updateEyeFile = function(eye, release, next)
 /*
 	next = function(err)
 */
-AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
+AppMaintainer.prototype.ensureAppRunningInPm2 = function(next)
 {
 	let self = this;
 	log.info(`Ensuring app running in pm2.`);
@@ -377,7 +377,7 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 /*
 	next = function(err)
 */
-AppUpdater.prototype.run = function(next)
+AppMaintainer.prototype.run = function(next)
 {
 	let self = this;
 	/*
@@ -413,4 +413,4 @@ AppUpdater.prototype.run = function(next)
 	});
 }
 
-module.exports = AppUpdater;
+module.exports = AppMaintainer;

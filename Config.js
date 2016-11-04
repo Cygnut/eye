@@ -4,6 +4,28 @@ const
 	fs = require('fs-extra'),
 	path = require('path');
 
+/*
+Example config file.
+
+{
+	"maintain_period": 30000,	// [Optional] Run eye maintenance every 30 seconds.
+	"apps_path": "./here",	// [Optional] Location to install apps in.
+	"apps": [
+		{
+			"id": "test-tags",		// [Required] Unique name amongst all other apps maintained.
+			"repo": {
+				"owner": "Cygnut",		// [Required] Github repo owner.
+				"name": "test-tags",	// [Required] Github repo name.
+				"release": {
+					"id": null			// [Optional] Desired github release id. Leave null to get latest.
+				}
+			}
+		}]
+}
+
+
+*/
+
 var Config = {};
 
 Config.path = path.join(__dirname, '.config');

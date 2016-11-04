@@ -10,6 +10,7 @@
 			ensure it is installed in it's own directory under ../apps
 			ensure it is up to date
 			ensure that it is being run by pm2
+		# All Done!
 	Phase 2:
 		Make maintain period configurable.
 		Print time of next maintain action.
@@ -20,53 +21,26 @@
 */
 
 var 
-	fs = require('fs-extra'),
-	async = require('async'),
 	path = require('path'),
 	log = require('winston'),
-	AppUpdater = require('./AppUpdater'),
+	AppsMaintainer = require('./AppsMaintainer'),
 	Config = require('./Config');
 
 // Initialise logging.
 require('./Logging').init();
 
-var MAINTAIN_PERIOD = 10 * 60 * 1000;
-var APPS_PATH = path.join(__dirname, '../', 'eye-apps');
-
-function runLoop(config)
-{
-	log.info(`Starting to maintain apps.`);
-	
-	async.mapSeries(
-		config.apps, 
-		function(app, next) {
-			
-			log.info(`Starting to maintain app "${app.id}".`);
-			
-			new AppUpdater(APPS_PATH, app).run(function(err) {
-				if (err)
-					log.error(`Failed to ensure ${app.id} up to date, due to error ${err}.`);
-				
-				log.info(`Finished maintaining app "${app.id}".`);
-				
-				return next();	// trap errors to treat apps independently.
-			});
-		},
-		function(err, results)
-		{
-			log.info(`Finished maintaining apps.`);
-			// When done, schedule another execution.
-			setTimeout(function() { 
-				runLoop(config); 
-			}, MAINTAIN_PERIOD);
-		});
-}
+const DEFAULT_MAINTAIN_PERIOD = 60 * 60 * 1000;	// 1 hour.
+const DEFAULT_APPS_PATH = path.join(__dirname, '../', 'eye-apps');
 
 Config.load(function(err, config) {
 	if (err)
 		return log.error(`No configuration could be loaded from ${Config.path}`);
 	
-	runLoop(config);
+	config.maintain_period = config.maintain_period || DEFAULT_MAINTAIN_PERIOD;
+	config.apps_path = config.apps_path || DEFAULT_APPS_PATH;
+	// TODO: Save config back to disk here, to capture defaults.
+	
+	new AppsMaintainer(config).run();
 });
 
 // TODO: Load from disk. Update on change from web interface.
