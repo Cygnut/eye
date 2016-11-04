@@ -132,6 +132,7 @@ AppUpdater.prototype.fetchRequiredRelease = function(next)
 */
 AppUpdater.prototype.installPackage = function(eye, release, next)
 {
+	let self = this;
 	log.info(`Installing required package.`);
 	
 	let prepareDir = function(appDir, eye, next) {
@@ -230,7 +231,7 @@ AppUpdater.prototype.installPackage = function(eye, release, next)
 				if (code !== 0 || stderr)
 					return next(`${cmd} ${args.toString()} in ${dir} terminated with code ${code}, stderr ${stderr}`);
 				return next();
-			}.bind(this))
+			}.bind(self))
 			.run();
 	};
 	
@@ -243,33 +244,33 @@ AppUpdater.prototype.installPackage = function(eye, release, next)
 	
 	return async.waterfall([
 		function(next) {
-				prepareDir(this.appDir, eye, function(err) {
-					if (err) return next(`Failed to prepare directory ${this.appDir} with error ${err}.`);
+				prepareDir(self.appDir, eye, function(err) {
+					if (err) return next(`Failed to prepare directory ${self.appDir} with error ${err}.`);
 					return next();
-				}.bind(this));
-			}.bind(this),
+				});
+			},
 		function(next) { 
-				download(release.zip, this.zipPath, function(err) {
+				download(release.zip, self.zipPath, function(err) {
 					if (err) return next(`Failed to download package ${release.zip} with error ${err}.`);
 					return next();
-				}.bind(this));
-			}.bind(this),
+				});
+			},
 		function(next) { 
-				unzipGithubPackage(this.zipPath, this.appDir, function(err) {
-					if (err) return next(`Failed to unzip github package ${this.zipPath} with error ${err}.`);
+				unzipGithubPackage(self.zipPath, self.appDir, function(err) {
+					if (err) return next(`Failed to unzip github package ${self.zipPath} with error ${err}.`);
 					return next();
-				}.bind(this));
-			}.bind(this),
+				});
+			},
 		function(next) { 
-				npmUpdate(this.appDir, function(err) {
-					if (err) return next(`Failed to npm update directory ${this.appDir} with error ${err}`);
+				npmUpdate(self.appDir, function(err) {
+					if (err) return next(`Failed to npm update directory ${self.appDir} with error ${err}`);
 					return next();
-				}.bind(this));
-			}.bind(this)
+				});
+			}
 	], 
 	function(err, result) {
 		return next(err);
-	}.bind(this));
+	});
 }
 
 /*
@@ -299,6 +300,7 @@ AppUpdater.prototype.updateEyeFile = function(eye, release, next)
 */
 AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 {
+	let self = this;
 	log.info(`Ensuring app running in pm2.`);
 	
 	let ensureStarted = function(process, next) {
@@ -310,49 +312,39 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 		{
 			log.info(`Process being restarted in pm2.`);
 			
-			pm2.restart(this.processName, function(err) {
+			pm2.restart(self.processName, function(err) {
 				return next(err && `Failed to restart pm2 process with error ${err}`);
-			}.bind(this));
+			});
 		}
 		else return next();
-	}.bind(this);
+	};
 	
 	let addToPm2 = function(next) {
 		log.info(`Process not known by pm2 - starting it.`);
 		
 		async.waterfall([
 			function(next) {
-				fs.readJson(this.packageJson, (err, pkg) => { 
+				fs.readJson(self.packageJson, (err, pkg) => { 
 					return next(err && `Failed to load package.json for app with error ${err}`, pkg);
 				});
-			}.bind(this),
+			},
 			function(pkg, next)
 			{
 				log.info(`Process not known by pm2 - starting it.`);
-				pm2.start({ name: this.processName, script: pkg.main, cwd: this.appDir }, function(err) { 
+				pm2.start({ name: self.processName, script: pkg.main, cwd: self.appDir }, function(err) { 
 					return next(err && `Failed to start pm2 app with error ${err}`); 
 				});
-			}.bind(this),
+			},
 			function(next) {
 				log.info(`Process not persisted by pm2 - storing it.`);
 				pm2.dump((err) => next(err && `Failed to persist pm2 process with error ${err}`));
-			}.bind(this)
+			}
 		], 
 		function(err) {
 			return next(err);
 		});
 		
-	}.bind(this);
-	
-	// TODO: We might be able to turn this into a waterfall :)
-	
-	// Now we just need to ensure that the app is saved and running in pm2.
-	
-	// Check if the app is in pm2's list.
-	//		If not, add it, then start the app.
-	//		If it is, then do a restart.
-	
-	// Connect to a pm2 daemon.
+	};
 	
 	async.waterfall([
 		function(next) {
@@ -360,26 +352,26 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 			pm2.connect((err) => { 
 				return next(err && `Failed to connect to pm2 with error ${err}`);
 			});
-		}.bind(this),
+		},
 		function(next) {
 			// Get all of pm2s managed processes.
 			pm2.list((err, processes) => { 
 				return next(err && `Failed to get pm2 processes with error ${err}`, processes);
 			});
-		}.bind(this),
+		},
 		function(processes, next) {
-			let process = processes.find(function(p) { return p.name === this.processName; }.bind(this));
+			let process = processes.find((p) => p.name === self.processName);
 			
 			if (process)
 				ensureStarted(process, next);
 			else
 				addToPm2(next);
-		}.bind(this)
+		}
 	], function(err) {
 		// Always disconnect, no matter the result as a catchall.
 		pm2.disconnect();
 		return next(err);
-	}.bind(this));
+	});
 }
 
 /*
@@ -387,6 +379,7 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 */
 AppUpdater.prototype.run = function(next)
 {
+	let self = this;
 	/*
 		Can we share some vindaloo, sleeping bags, and shampoo,
 		Until all the planets collide.
@@ -397,27 +390,27 @@ AppUpdater.prototype.run = function(next)
 	*/
 	async.waterfall([
 		function(next) { 
-			this.ensureAppDirectoryExists((err) => next(err)); 
-			}.bind(this),
+			self.ensureAppDirectoryExists((err) => next(err)); 
+			},
 		function(next) { 
-			this.getEyeFile((err, eye) => next(err, eye)); 
-			}.bind(this),
+			self.getEyeFile((err, eye) => next(err, eye)); 
+			},
 		function(eye, next) { 
-			this.fetchRequiredRelease((err, release) => next(err, eye, release)); 
-			}.bind(this),
+			self.fetchRequiredRelease((err, release) => next(err, eye, release)); 
+			},
 		function(eye, release, next) { 
-			this.installPackage(eye, release, (err) => next(err, eye, release)); 
-			}.bind(this),
+			self.installPackage(eye, release, (err) => next(err, eye, release)); 
+			},
 		function(eye, release, next) { 
-			this.ensureAppRunningInPm2((err) => next(err, eye, release)); 
-			}.bind(this),
+			self.ensureAppRunningInPm2((err) => next(err, eye, release)); 
+			},
 		function(eye, release, next) { 
-			this.updateEyeFile(eye, release, (err) => next(err)); 
-			}.bind(this)
+			self.updateEyeFile(eye, release, (err) => next(err)); 
+			}
 	], 
 	function(err) {
 		return next(err);
-	}.bind(this));
+	});
 }
 
 module.exports = AppUpdater;

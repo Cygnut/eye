@@ -11,6 +11,8 @@
 			ensure it is up to date
 			ensure that it is being run by pm2
 	Phase 2:
+		Make maintain period configurable.
+		Print time of next maintain action.
 		Completely clean install option?
 		Have a web interface to allow editing of the app config file.
 		Check pm2 (globally) installed on startup.
@@ -28,7 +30,7 @@ var
 // Initialise logging.
 require('./Logging').init();
 
-var POLL_PERIOD = 10 * 60 * 1000;
+var MAINTAIN_PERIOD = 10 * 60 * 1000;
 var APPS_PATH = path.join(__dirname, '../', 'eye-apps');
 
 function runLoop(config)
@@ -38,17 +40,25 @@ function runLoop(config)
 	async.mapSeries(
 		config.apps, 
 		function(app, next) {
+			
+			log.info(`Starting to maintain app "${app.id}".`);
+			
 			new AppUpdater(APPS_PATH, app).run(function(err) {
 				if (err)
 					log.error(`Failed to ensure ${app.id} up to date, due to error ${err}.`);
-				return next();	// trap errors.
+				
+				log.info(`Finished maintaining app "${app.id}".`);
+				
+				return next();	// trap errors to treat apps independently.
 			});
 		},
 		function(err, results)
 		{
 			log.info(`Finished maintaining apps.`);
 			// When done, schedule another execution.
-			setTimeout(function() { runLoop(config); }, POLL_PERIOD)
+			setTimeout(function() { 
+				runLoop(config); 
+			}, MAINTAIN_PERIOD);
 		});
 }
 
