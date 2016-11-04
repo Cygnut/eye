@@ -1,19 +1,21 @@
 const
+	process = require('process'),
 	spawn = require('child_process').spawn;
+	//spawn = require('cross-spawn').spawn;
 
 
 function Spawner() 
 {
-	this._options = { };
+	this._cwd = null;
 	this._command = '';
 	this._args = [];
 	this._error = function(err) {};
 	this._close = function(code, stdout, stderr) {};
 }
 
-Spawner.prototype.options = function(options)
+Spawner.prototype.cwd = function(c)
 {
-	this._options = options;
+	this._cwd = c;
 	return this;
 }
 
@@ -43,8 +45,11 @@ Spawner.prototype.close = function(c)
 
 Spawner.prototype.run = function()
 {
-	var opts = this._options;
-	opts.detached = true;
+	var opts = {
+		cwd: this._cwd,
+		env: process.env,
+		detached: true
+	};
 	
 	var cmd = spawn(this._command, this._args, opts);
 	var stdout = '';

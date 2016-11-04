@@ -12,11 +12,10 @@ const
 	pm2 = require('pm2');
 
 
-function AppUpdater(app)
+function AppUpdater(appsPath, app)
 {
 	this.app = app;
 	
-	let appsPath = path.join(__dirname, '../', 'apps');
 	this.appDir = path.join(appsPath, this.app.id);
 	this.packageJson = path.join(this.appDir, 'package.json');
 	this.eyePath = path.join(this.appDir, '.eye');
@@ -25,7 +24,7 @@ function AppUpdater(app)
 	
 	this.github = new GitHubApi({
 		// optional args 
-		debug: true,
+		debug: false,
 		protocol: "https",
 		host: "api.github.com", // should be api.github.com for GitHub 
 		//pathPrefix: "/api/v3", // for some GHEs; none for GitHub 
@@ -58,7 +57,7 @@ AppUpdater.prototype.ensureAppDirectoryExists = function(next)
 */
 AppUpdater.prototype.getEyeFile = function(next)
 {
-	log.info(`Loading .eye file`);
+	log.info(`Loading .eye file from ${this.eyePath}`);
 	
 	try
 	{
@@ -72,7 +71,7 @@ AppUpdater.prototype.getEyeFile = function(next)
 }
 
 /*
-	next = function(err, tag = {
+	next = function(err, release = {
 		name,
 		zip,
 		id
@@ -97,7 +96,7 @@ AppUpdater.prototype.fetchRequiredRelease = function(next)
 		log.info(`Getting latest release.`);
 		
 		// Even though this is paginated, it is provided in order from latest to oldest, 
-		// so just get the first item. If no items, then no tags exist.
+		// so just get the first item. If no items, then no releases exist.
 		this.github.repos.getLatestRelease({
 			owner: repo.owner,
 			repo: repo.name
@@ -131,7 +130,7 @@ AppUpdater.prototype.fetchRequiredRelease = function(next)
 /*
 	next = function(err)
 */
-AppUpdater.prototype.installPackage = function(eye, tag, next)
+AppUpdater.prototype.installPackage = function(eye, release, next)
 {
 	log.info(`Installing required package.`);
 	
@@ -176,13 +175,28 @@ AppUpdater.prototype.installPackage = function(eye, tag, next)
 		});
 	};
 	
-	let unzip = function(path, dest, next) {
+	let unzipGithubPackage = function(path, dest, next) {
+		
+		/*
+			Github zips will take the form:
+			.
+			[owner]-[repo]-[sha]/
+				package
+			
+			So we need to extract that subfolder (essentially the only) to dest.
+		*/
+		
 		
 		log.info(`Unzipping package.`);
 		try
 		{
 			// Extract the required package.
-			new Zip(path).extractAllTo(dest, true /*Overwrite*/);	// this can throw.
+			let zip = new Zip(path);
+			let dirEntry = zip.getEntries().find(e => e.isDirectory);
+			if (!dirEntry)
+				return next(`Failed to unzip - no subdirectories found in zip at ${path}.`);
+			
+			zip.extractEntryTo(dirEntry, dest, false /*maintain entry path*/, true /*overwrite*/);	// this can throw.
 			return next();
 		}
 		catch (err)
@@ -195,21 +209,26 @@ AppUpdater.prototype.installPackage = function(eye, tag, next)
 		
 		log.info(`npm updating package.`);
 		
-		// npm update updates all installed node_modules, in addition to installing any missing ones.
-		// (so it does npm install plus more good stuff)
-		let cmd = 'npm';
-		let args = [ 'update' ];
+		// npm update updates all installed node_modules, in addition to installing any missing ones.(so it does npm install plus more good stuff)
+		// It's not easy to call npm through spawn on Windows. Since npm is a npm.cmd batch file (spawn has issues with PATHEXT). For now, the below works, but is not hidden.
+		// Get it to run hidden later!
+		let cmd = 'cmd';
+		let args = ['/c', 'npm update'];
+		
 		new Spawner()
 			.command(cmd)
 			.args(args)
-			.options({
-				cwd: dir
+			.cwd(dir)
+			.error(function(err) {
+				// DON'T CALL NEXT HERE AS OTHERWISE IT WILL BE CALLED TWICE.
+				console.log( process.env.PATH );
+				log.error(`${cmd} ${args.toString()} in ${dir} terminated with error ${err}`);
 			})
 			.close(function(code, stdout, stderr)
 			{
 				log.info(`npm update terminated.`);
 				if (code !== 0 || stderr)
-					return next(`${cmd} ${args.toString()} terminated with code ${code}, stderr ${stderr}`);
+					return next(`${cmd} ${args.toString()} in ${dir} terminated with code ${code}, stderr ${stderr}`);
 				return next();
 			}.bind(this))
 			.run();
@@ -218,7 +237,8 @@ AppUpdater.prototype.installPackage = function(eye, tag, next)
 	
 	// If there's already a package installed, and it has the matching sha, 
 	// then we don't need to do any further installation - we're done.
-	if (eye && eye.sha === tag.sha)
+	log.info(`Current installation at release id=${eye ? eye.release_id : '<none>'}, required release id=${release.id}.`);
+	if (eye && eye.release_id === release.id)
 		return next();
 	
 	return async.waterfall([
@@ -229,14 +249,14 @@ AppUpdater.prototype.installPackage = function(eye, tag, next)
 				}.bind(this));
 			}.bind(this),
 		function(next) { 
-				download(tag.zip, this.zipPath, function(err) {
-					if (err) return next(`Failed to download package ${tag.zip} with error ${err}.`);
+				download(release.zip, this.zipPath, function(err) {
+					if (err) return next(`Failed to download package ${release.zip} with error ${err}.`);
 					return next();
 				}.bind(this));
 			}.bind(this),
 		function(next) { 
-				unzip(this.zipPath, this.appDir, function(err) {
-					if (err) return next(`Failed to unzip package ${this.zipPath} with error ${err}.`);
+				unzipGithubPackage(this.zipPath, this.appDir, function(err) {
+					if (err) return next(`Failed to unzip github package ${this.zipPath} with error ${err}.`);
 					return next();
 				}.bind(this));
 			}.bind(this),
@@ -281,6 +301,8 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 {
 	log.info(`Ensuring app running in pm2.`);
 	
+	// TODO: We might be able to turn this into a waterfall :)
+	
 	// Now we just need to ensure that the app is saved and running in pm2.
 	
 	// Check if the app is in pm2's list.
@@ -289,12 +311,10 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 	
 	// Connect to a pm2 daemon.
 	pm2.connect(function(err) {
-		
 		if (err)
 			return next(`Failed to connect to pm2 with error ${err}`);
 		
 		pm2.list(function(err, processes) {
-			
 			if (err)
 			{
 				pm2.disconnect();
@@ -307,9 +327,17 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 			
 			if (process)
 			{
+				let status = process.pm2_env.status;
+				log.info(`Process known by pm2 - checking if it needs a restart (status=${status}).`);
+				
 				// The process is on pm2's list. Ensure it's running.
-				if (['stopping', 'stopped', 'errored'].includes(process.status))
+				if (['stopping', 'stopped', 'errored'].find(function(s) { 
+					return s === status; 
+					})
+				)	// Should use .includes, but only in node>=6
 				{
+					log.info(`Process being restarted in pm2.`);
+					
 					pm2.restart(this.processName, function(err) {
 						pm2.disconnect();
 						if (err)
@@ -317,9 +345,12 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 						else return next();
 					}.bind(this));
 				}
+				else return next();
 			}
 			else
 			{
+				log.info(`Process not known by pm2 - starting it.`);
+				
 				let script = null;
 				try {
 					script = fs.readJsonSync(this.packageJson).main;
@@ -340,6 +371,8 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 						pm2.disconnect();
 						return next(`Failed to start pm2 app with error ${err}`);
 					}
+					
+					log.info(`Process not persisted by pm2 - storing it.`);
 					
 					// Ensure all listed processes are persisted.
 					pm2.dump(function(err, process) {
@@ -381,10 +414,10 @@ AppUpdater.prototype.run = function(next)
 			this.installPackage(eye, release, (err) => next(err, eye, release)); 
 			}.bind(this),
 		function(eye, release, next) { 
-			this.updateEyeFile(eye, release, (err) => next(err)); 
+			this.ensureAppRunningInPm2((err) => next(err, eye, release)); 
 			}.bind(this),
-		function(next) { 
-			this.ensureAppRunningInPm2((err) => next(err)); 
+		function(eye, release, next) { 
+			this.updateEyeFile(eye, release, (err) => next(err)); 
 			}.bind(this)
 	], 
 	function(err, result) {

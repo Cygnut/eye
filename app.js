@@ -14,6 +14,7 @@
 		Completely clean install option?
 		Have a web interface to allow editing of the app config file.
 		Check pm2 (globally) installed on startup.
+		Improve npm update code.
 */
 
 var 
@@ -28,13 +29,16 @@ var
 require('./Logging').init();
 
 var POLL_PERIOD = 10 * 60 * 1000;
+var APPS_PATH = path.join(__dirname, '../', 'eye-apps');
 
 function runLoop(config)
 {
+	log.info(`Starting to maintain apps.`);
+	
 	async.mapSeries(
 		config.apps, 
 		function(app, next) {
-			new AppUpdater(app).run(function(err) {
+			new AppUpdater(APPS_PATH, app).run(function(err) {
 				if (err)
 					log.error(`Failed to ensure ${app.id} up to date, due to error ${err}.`);
 				return next();	// trap errors.
@@ -42,9 +46,9 @@ function runLoop(config)
 		},
 		function(err, results)
 		{
-			log.info(`Finished installing apps.`);
+			log.info(`Finished maintaining apps.`);
 			// When done, schedule another execution.
-			setTimeout(runLoop, POLL_PERIOD)
+			setTimeout(function() { runLoop(config); }, POLL_PERIOD)
 		});
 }
 
