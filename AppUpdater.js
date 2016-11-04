@@ -301,6 +301,49 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 {
 	log.info(`Ensuring app running in pm2.`);
 	
+	let ensureStarted = function(process, next) {
+		let status = process.pm2_env.status;
+		log.info(`Process known by pm2 - checking if it needs a restart (status=${status}).`);
+		
+		// The process is on pm2's list. Ensure it's running. Should use .includes, but only in node>=6
+		if (['stopping', 'stopped', 'errored'].find((s) => { return s === status; }))
+		{
+			log.info(`Process being restarted in pm2.`);
+			
+			pm2.restart(this.processName, function(err) {
+				return next(err && `Failed to restart pm2 process with error ${err}`);
+			}.bind(this));
+		}
+		else return next();
+	}.bind(this);
+	
+	let addToPm2 = function(next) {
+		log.info(`Process not known by pm2 - starting it.`);
+		
+		async.waterfall([
+			function(next) {
+				fs.readJson(this.packageJson, (err, pkg) => { 
+					return next(err && `Failed to load package.json for app with error ${err}`, pkg);
+				});
+			}.bind(this),
+			function(pkg, next)
+			{
+				log.info(`Process not known by pm2 - starting it.`);
+				pm2.start({ name: this.processName, script: pkg.main, cwd: this.appDir }, function(err) { 
+					return next(err && `Failed to start pm2 app with error ${err}`); 
+				});
+			}.bind(this),
+			function(next) {
+				log.info(`Process not persisted by pm2 - storing it.`);
+				pm2.dump((err) => next(err && `Failed to persist pm2 process with error ${err}`));
+			}.bind(this)
+		], 
+		function(err) {
+			return next(err);
+		});
+		
+	}.bind(this);
+	
 	// TODO: We might be able to turn this into a waterfall :)
 	
 	// Now we just need to ensure that the app is saved and running in pm2.
@@ -310,80 +353,32 @@ AppUpdater.prototype.ensureAppRunningInPm2 = function(next)
 	//		If it is, then do a restart.
 	
 	// Connect to a pm2 daemon.
-	pm2.connect(function(err) {
-		if (err)
-			return next(`Failed to connect to pm2 with error ${err}`);
-		
-		pm2.list(function(err, processes) {
-			if (err)
-			{
-				pm2.disconnect();
-				return next(`Failed to get pm2 processes with error ${err}`);
-			}
-			
-			let process = processes.find(function(p) {
-				return p.name === this.processName;
-			}.bind(this));
+	
+	async.waterfall([
+		function(next) {
+			// Connect to pm2.
+			pm2.connect((err) => { 
+				return next(err && `Failed to connect to pm2 with error ${err}`);
+			});
+		}.bind(this),
+		function(next) {
+			// Get all of pm2s managed processes.
+			pm2.list((err, processes) => { 
+				return next(err && `Failed to get pm2 processes with error ${err}`, processes);
+			});
+		}.bind(this),
+		function(processes, next) {
+			let process = processes.find(function(p) { return p.name === this.processName; }.bind(this));
 			
 			if (process)
-			{
-				let status = process.pm2_env.status;
-				log.info(`Process known by pm2 - checking if it needs a restart (status=${status}).`);
-				
-				// The process is on pm2's list. Ensure it's running.
-				if (['stopping', 'stopped', 'errored'].find(function(s) { 
-					return s === status; 
-					})
-				)	// Should use .includes, but only in node>=6
-				{
-					log.info(`Process being restarted in pm2.`);
-					
-					pm2.restart(this.processName, function(err) {
-						pm2.disconnect();
-						if (err)
-							return next(`Failed to restart pm2 process with error ${err}`);
-						else return next();
-					}.bind(this));
-				}
-				else return next();
-			}
+				ensureStarted(process, next);
 			else
-			{
-				log.info(`Process not known by pm2 - starting it.`);
-				
-				let script = null;
-				try {
-					script = fs.readJsonSync(this.packageJson).main;
-				}
-				catch (err) {
-					pm2.disconnect();
-					return next(`Failed to load package.json for app ${this.app.id}`);
-				}
-				
-				// The process isn't started, and it's not in pm2's list.
-				pm2.start({
-					name: this.processName,
-					script: script,
-					cwd: this.appDir
-				}, function(err, process) {
-					if (err) 
-					{
-						pm2.disconnect();
-						return next(`Failed to start pm2 app with error ${err}`);
-					}
-					
-					log.info(`Process not persisted by pm2 - storing it.`);
-					
-					// Ensure all listed processes are persisted.
-					pm2.dump(function(err, process) {
-						pm2.disconnect();
-						if (err)
-							return next(`Failed to persist pm2 process with error ${err}`);
-						else return next();
-					}.bind(this));
-				}.bind(this));
-			}
-		}.bind(this));
+				addToPm2(next);
+		}.bind(this)
+	], function(err) {
+		// Always disconnect, no matter the result as a catchall.
+		pm2.disconnect();
+		return next(err);
 	}.bind(this));
 }
 
@@ -420,7 +415,7 @@ AppUpdater.prototype.run = function(next)
 			this.updateEyeFile(eye, release, (err) => next(err)); 
 			}.bind(this)
 	], 
-	function(err, result) {
+	function(err) {
 		return next(err);
 	}.bind(this));
 }
