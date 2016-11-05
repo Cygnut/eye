@@ -8,9 +8,15 @@ const
 Example config file.
 
 {
-	"maintain_period": 30000,	// [Optional] Run eye maintenance every 30 seconds.
-	"apps_path": "./here",	// [Optional] Location to install apps in.
-	"web_port": 3100,		// [Optional] Configuration web port.
+	"web": 
+	{
+		"port": 3100,		// [Optional] Configuration web port.
+	}
+	"maintenance":
+	{
+		"period": 30000,		// [Optional] Run eye maintenance every 30 seconds.
+		"apps_path": "./here"	// [Optional] Location to install apps in.
+	}
 	"apps": [
 		{
 			"id": "test-tags",		// [Required] Unique name amongst all other apps maintained.

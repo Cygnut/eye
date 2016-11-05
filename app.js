@@ -13,7 +13,7 @@
 		# All Done!
 	Phase 2:
 		Make maintain period configurable.								# done
-		Implement MainController.js										# next up
+		Implement MainController.js										# next up - MainController.prototype.addApp
 		Print time of next maintain action.								
 		Deep clone config object before each run.						
 		Completely clean install option?								
@@ -23,6 +23,7 @@
 */
 
 var 
+	_ = require('lodash'),
 	express = require('express'),
 	path = require('path'),
 	log = require('winston'),
@@ -43,15 +44,51 @@ Config.load(function(err, config) {
 	
 	// TODO: Save a config file and exit if one not found.
 	
-	config.maintain_period = config.maintain_period || DEFAULT_MAINTAIN_PERIOD;
-	config.apps_path = config.apps_path || DEFAULT_APPS_PATH;
-	config.web_port = config.web_port || DEFAULT_WEB_PORT;
+	config.maintenance = config.maintenance || {};
+	config.maintenance.period = config.maintenance.period || DEFAULT_MAINTAIN_PERIOD;
+	config.maintenance.apps_path = config.maintenance.apps_path || DEFAULT_APPS_PATH;
+	
+	config.web = config.web || {};
+	config.web.port = config.web.port || DEFAULT_WEB_PORT;
+	
+	config.apps = config.apps || [];
 	// TODO: Save config back to disk here, to capture defaults.
 	
 	createWebInterface(config);
 	
-	new AppsMaintainer(config).run();
+	startMaintenence(config);
 });
+
+function startMaintenence(config)
+{
+	let maintain = function(config, next) {
+		
+		log.info(`Starting to maintain apps.`);
+		
+		new AppsMaintainer(config.maintenance.apps_path)
+			.maintain(config.apps, function(err) { 
+				
+				log.info(`Finished maintaining apps.`);
+				return next();
+			});
+	};
+	
+	// callback = function(next)
+	let loop = function(cb, getInterval) {
+		
+		cb(function() {
+			setTimeout(function() {
+				loop(cb, getInterval);
+			}, getInterval());
+		});
+	};
+	
+	loop(
+		// Take a copy of config here so that config can be modified without affecting the current maintenance run.
+		(next) => maintain(_.cloneDeep(config), next),
+		() => config.maintenance.period
+		);
+}
 
 // TODO: Load from disk. Update on change from web interface.
 
@@ -72,7 +109,7 @@ function createWebInterface(config)
 	Object.keys(controllers).forEach(function(key) { controllers[key].register(app); });
 
 	// Listen:
-	var server = app.listen(config.web_port, () => {
+	var server = app.listen(config.web.port, () => {
 		var host = server.address().address;
 		var port = server.address().port;
 		

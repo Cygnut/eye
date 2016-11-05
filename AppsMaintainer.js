@@ -5,25 +5,22 @@ var
 	log = require('winston'),
 	AppMaintainer = require('./AppMaintainer');
 
-function AppsMaintainer(config)
+function AppsMaintainer(apps_path)
 {
-	this.config = config;
+	this.apps_path = apps_path;
 }
 
-AppsMaintainer.prototype.run = function()
+AppsMaintainer.prototype.maintain = function(apps, next)
 {
 	let self = this;
 	
-	log.info(`Starting to maintain apps.`);
-	
-	// TODO: Take a clone of config here to be independent of config changes in this loop.
 	async.mapSeries(
-		self.config.apps, 
+		apps, 
 		function(app, next) {
 			
 			log.info(`Starting to maintain app "${app.id}".`);
 			
-			new AppMaintainer(self.config.apps_path, app).run(function(err) {
+			new AppMaintainer(self.apps_path, app).run(function(err) {
 				if (err)
 					log.error(`Failed to ensure ${app.id} up to date, due to error ${err}.`);
 				
@@ -32,13 +29,9 @@ AppsMaintainer.prototype.run = function()
 				return next();	// trap errors to treat apps independently.
 			});
 		},
-		function(err, results)
+		function(err)
 		{
-			log.info(`Finished maintaining apps.`);
-			// When done, schedule another execution.
-			setTimeout(function() { 
-				self.run(); 
-			}, self.config.maintain_period);
+			return next(err && `Error while maintaining apps ${err}`);
 		});
 }
 
