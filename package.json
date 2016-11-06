@@ -15,11 +15,13 @@
   "dependencies": {
     "adm-zip": "^0.4.7",
     "async": "^2.1.2",
+    "body-parser": "^1.15.2",
     "express": "^4.14.0",
     "fs-extra": "^0.30.0",
     "github": "^5.3.3",
     "lodash": "^4.16.6",
     "moment": "^2.15.2",
+    "node-custom-errors": "^0.1.6",
     "pm2": "^2.0.19",
     "pug": "^2.0.0-beta6",
     "request": "^2.78.0",

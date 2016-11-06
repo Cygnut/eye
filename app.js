@@ -13,7 +13,15 @@
 		# All Done!
 	Phase 2:
 		Make maintain period configurable.								# done
-		Implement MainController.js										# next up - MainController.prototype.addApp
+		Implement MainController.js										# done
+		Get around github rate limiting.								# In progress
+		
+		[06-11-2016 18:54:44] ERROR Failed to ensure test-tags up to date, due to error
+		Failed to get latest release from github for Cygnut/test-tags with error {"messa
+		ge":"API rate limit exceeded for 90.194.186.27. (But here's the good news: Authe
+		nticated requests get a higher rate limit. Check out the documentation for more
+		details.)","documentation_url":"https://developer.github.com/v3/#rate-limiting"}
+		
 		Print time of next maintain action.								
 		Deep clone config object before each run.						
 		Completely clean install option?								
@@ -98,7 +106,9 @@ function createWebInterface(config)
 	// Templating:
 	app.set('views', './views');
 	app.set('view engine', 'pug');
-
+	// Allow sending json bodies.
+	app.use(require('body-parser').json());
+	
 	// Create controllers:
 	var controllers = {
 		ping: new (require('./controllers/PingController'))(),
