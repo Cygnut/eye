@@ -5,34 +5,38 @@ var
 	log = require('winston'),
 	AppMaintainer = require('./AppMaintainer');
 
-function AppsMaintainer(apps_path)
+function AppsMaintainer(maintenanceConfig)
 {
-	this.apps_path = apps_path;
+	this.maintenanceConfig = maintenanceConfig;
 }
 
-AppsMaintainer.prototype.maintain = function(apps, next)
-{
-	let self = this;
+(function() {
 	
-	async.mapSeries(
-		apps, 
-		function(app, next) {
-			
-			log.info(`Starting to maintain app "${app.id}".`);
-			
-			new AppMaintainer(self.apps_path, app).run(function(err) {
-				if (err)
-					log.error(`Failed to ensure ${app.id} up to date, due to error ${err}.`);
+	this.maintain = function(apps, next)
+	{
+		let self = this;
+		
+		async.mapSeries(
+			apps, 
+			function(app, next) {
 				
-				log.info(`Finished maintaining app "${app.id}".`);
+				log.info(`Starting to maintain app "${app.id}".`);
 				
-				return next();	// trap errors to treat apps independently.
+				new AppMaintainer(self.maintenanceConfig, app).run(function(err) {
+					if (err)
+						log.error(`Failed to ensure ${app.id} up to date, due to error ${err}.`);
+					
+					log.info(`Finished maintaining app "${app.id}".`);
+					
+					return next();	// trap errors to treat apps independently.
+				});
+			},
+			function(err)
+			{
+				return next(err && `Error while maintaining apps ${err}`);
 			});
-		},
-		function(err)
-		{
-			return next(err && `Error while maintaining apps ${err}`);
-		});
-}
+	}
+	
+}).call(AppsMaintainer.prototype);
 
 module.exports = AppsMaintainer;

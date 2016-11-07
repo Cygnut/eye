@@ -14,20 +14,14 @@
 	Phase 2:
 		Make maintain period configurable.								# done
 		Implement MainController.js										# done
-		Get around github rate limiting.								# In progress
-		
-		[06-11-2016 18:54:44] ERROR Failed to ensure test-tags up to date, due to error
-		Failed to get latest release from github for Cygnut/test-tags with error {"messa
-		ge":"API rate limit exceeded for 90.194.186.27. (But here's the good news: Authe
-		nticated requests get a higher rate limit. Check out the documentation for more
-		details.)","documentation_url":"https://developer.github.com/v3/#rate-limiting"}
-		
+		Get around github rate limiting.								# done
+		Deep clone config object before each run.						# done
 		Print time of next maintain action.								
-		Deep clone config object before each run.						
-		Completely clean install option?								
 		Have a web interface to allow editing of the app config file.	
 		Check pm2 (globally) installed on startup.						
+		Check for any other dependencies on startup.					
 		Improve npm update code.										
+		Handle any other TODOs in code.									
 */
 
 var 
@@ -50,11 +44,11 @@ Config.load(function(err, config) {
 	if (err)
 		return log.error(`No configuration could be loaded from ${Config.path}`);
 	
-	// TODO: Save a config file and exit if one not found.
+	// TODO: Save a config file and exit if one not found / required settings not present.
 	
 	config.maintenance = config.maintenance || {};
 	config.maintenance.period = config.maintenance.period || DEFAULT_MAINTAIN_PERIOD;
-	config.maintenance.apps_path = config.maintenance.apps_path || DEFAULT_APPS_PATH;
+	config.maintenance.appsPath = config.maintenance.appsPath || DEFAULT_APPS_PATH;
 	
 	config.web = config.web || {};
 	config.web.port = config.web.port || DEFAULT_WEB_PORT;
@@ -69,11 +63,11 @@ Config.load(function(err, config) {
 
 function startMaintenence(config)
 {
-	let maintain = function(config, next) {
+	function maintain(config, next) {
 		
 		log.info(`Starting to maintain apps.`);
 		
-		new AppsMaintainer(config.maintenance.apps_path)
+		new AppsMaintainer(config.maintenance)
 			.maintain(config.apps, function(err) { 
 				
 				log.info(`Finished maintaining apps.`);
@@ -82,7 +76,7 @@ function startMaintenence(config)
 	};
 	
 	// callback = function(next)
-	let loop = function(cb, getInterval) {
+	function loop(cb, getInterval) {
 		
 		cb(function() {
 			setTimeout(function() {

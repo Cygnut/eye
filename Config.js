@@ -11,12 +11,20 @@ Example config file.
 	"web": 
 	{
 		"port": 3100,		// [Optional] Configuration web port.
-	}
+	},
 	"maintenance":
 	{
 		"period": 30000,		// [Optional] Run eye maintenance every 30 seconds.
-		"apps_path": "./here"	// [Optional] Location to install apps in.
-	}
+		"appsPath": "./here",	// [Optional] Location to install apps in.
+		"repo":		// [Required] Authentication to use for repo access.
+		{
+			"auth": {
+				"type": "basic"		// [Optional] Defaults to "basic"
+				"username": "",		// For basic auth.
+				"password": ""		// For basic auth.
+			}
+		}
+	},
 	"apps": [
 		{
 			"id": "test-tags",		// [Required] Unique name amongst all other apps maintained.
