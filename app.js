@@ -16,8 +16,9 @@
 		Implement MainController.js										# done
 		Get around github rate limiting.								# done
 		Deep clone config object before each run.						# done
-		Print time of next maintain action.								
-		Have a web interface to allow editing of the app config file.	
+		Print time of next maintain action.								# done
+		Have a web interface to allow editing of the app config file.	# done
+		Have a web page to allow config of the app config file.			
 		Check pm2 (globally) installed on startup.						
 		Check for any other dependencies on startup.					
 		Improve npm update code.										
@@ -26,6 +27,7 @@
 
 var 
 	_ = require('lodash'),
+	moment = require('moment'),
 	express = require('express'),
 	path = require('path'),
 	log = require('winston'),
@@ -63,19 +65,7 @@ Config.load(function(err, config) {
 
 function startMaintenence(config)
 {
-	function maintain(config, next) {
-		
-		log.info(`Starting to maintain apps.`);
-		
-		new AppsMaintainer(config.maintenance)
-			.maintain(config.apps, function(err) { 
-				
-				log.info(`Finished maintaining apps.`);
-				return next();
-			});
-	};
-	
-	// callback = function(next)
+	// cb = function(next)
 	function loop(cb, getInterval) {
 		
 		cb(function() {
@@ -85,10 +75,24 @@ function startMaintenence(config)
 		});
 	};
 	
+	function getPeriod() {
+		return config.maintenance.period;
+	}
+	
 	loop(
-		// Take a copy of config here so that config can be modified without affecting the current maintenance run.
-		(next) => maintain(_.cloneDeep(config), next),
-		() => config.maintenance.period
+		function(next) {
+			log.info(`Starting to maintain apps.`);
+			
+			// Take a copy of config here so that config can be modified without affecting the current maintenance run.
+			let c = _.cloneDeep(config);
+			
+			new AppsMaintainer(c.maintenance).maintain(c.apps, function() {
+					let scheduled = moment().add(getPeriod(), 'milliseconds').format('DD-MM-YYYY HH:mm:ss');
+					log.info(`Finished maintaining apps. Next run at ${scheduled}.`);
+					return next();
+				});
+		},
+		getPeriod
 		);
 }
 
