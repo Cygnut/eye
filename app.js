@@ -18,7 +18,18 @@
 		Deep clone config object before each run.						# done
 		Print time of next maintain action.								# done
 		Have a web interface to allow editing of the app config file.	# done
-		Have a web page to allow config of the app config file.			
+		
+		Need to correctly handle removal of apps.
+			Remove from disk.
+			Remove from pm2.
+		
+		put self in pm2 if no existing instance?
+		flesh out simplistic web gui
+		misc options:
+			be able to delete content of apps folder.
+			get status of running apps
+			be able to restart/stop an app.
+		
 		Check pm2 (globally) installed on startup.						
 		Check for any other dependencies on startup.					
 		Improve npm update code.										
@@ -107,11 +118,14 @@ function createWebInterface(config)
 	// Allow sending json bodies.
 	app.use(require('body-parser').json());
 	
+	app.use(express.static('public'));
+	
 	// Create controllers:
 	var controllers = {
 		ping: new (require('./controllers/PingController'))(),
 		api: new (require('./controllers/ApiController'))(app),
-		main: new (require('./controllers/MainController'))(config)
+		config: new (require('./controllers/ConfigurationController'))(config),
+		maintenance: new (require('./controllers/MaintenanceController'))(config),
 	};
 	// Register controllers:
 	Object.keys(controllers).forEach(function(key) { controllers[key].register(app); });

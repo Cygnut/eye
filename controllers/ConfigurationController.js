@@ -5,7 +5,7 @@ var
 	log = require('winston'),
 	Config = require('../Config');
 
-function MainController(config)
+function ConfigurationController(config)
 {
 	this.config = config;
 }
@@ -15,13 +15,13 @@ function MainController(config)
 	this.register = function(app)
 	{
 		// Other config management?
-		app.get('/maintenance', this.getMaintenance.bind(this));
-		app.post('/maintenance', this.editMaintenance.bind(this));
+		app.get('/config/maintenance', this.getMaintenance.bind(this));
+		app.post('/config/maintenance', this.editMaintenance.bind(this));
 		
 		// App management
-		app.get('/apps', this.getApps.bind(this));
-		app.put('/apps', this.addApp.bind(this));
-		app.delete('/apps/:id', this.deleteApp.bind(this));
+		app.get('/config/apps', this.getApps.bind(this));
+		app.put('/config/apps', this.addApp.bind(this));
+		app.delete('/config/apps/:id', this.deleteApp.bind(this));
 	};
 	
 	this.saveConfig = function(next)
@@ -144,6 +144,6 @@ function MainController(config)
 		this.saveConfig(function() { return res.end(); });
 	};
 	
-}).call(MainController.prototype);
+}).call(ConfigurationController.prototype);
 
-module.exports = MainController;
+module.exports = ConfigurationController;

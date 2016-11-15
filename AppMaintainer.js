@@ -18,7 +18,7 @@ function AppMaintainer(maintenanceConfig, app)
 	this.appDir = path.join(maintenanceConfig.appsPath, this.app.id);
 	this.packageJson = path.join(this.appDir, 'package.json');
 	this.eyePath = path.join(this.appDir, '.eye');
-	this.processName = `eye-${this.app.id}`;
+	this.processName = `eye.${this.app.id}`;
 	this.zipPath = path.join(this.appDir, 'dist.zip');
 	
 	this.githubAuth = maintenanceConfig.repo.auth;
@@ -53,7 +53,7 @@ function AppMaintainer(maintenanceConfig, app)
 			else return next();
 		});
 	}
-
+	
 	/*
 		next = function(err, eyeFile)
 	*/
@@ -71,7 +71,7 @@ function AppMaintainer(maintenanceConfig, app)
 			return next(null);	// Couldn't find/read the .eye file - that's fine - return nothing.
 		}
 	}
-
+	
 	/*
 		next = function(err, release = {
 			name,
@@ -206,7 +206,6 @@ function AppMaintainer(maintenanceConfig, app)
 				So we need to extract that subfolder (essentially the only) to dest.
 			*/
 			
-			
 			log.info(`Unzipping package.`);
 			try
 			{
@@ -302,6 +301,7 @@ function AppMaintainer(maintenanceConfig, app)
 			eye = {};
 		
 		eye.release_id = release.id;
+		eye.release_name = release.name;	// Include for diagnostic purposes only.
 		try
 		{
 			fs.writeJsonSync(this.eyePath, eye);
