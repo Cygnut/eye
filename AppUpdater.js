@@ -10,15 +10,17 @@ const
 	log = require('winston'),
 	GitHubApi = require('github'),
 	pm2 = require('pm2');
-
-function AppMaintainer(maintenanceConfig, app)
+	
+module.exports.EYE_PREFIX = 'eye.';
+	
+function AppUpdater(maintenanceConfig, app)
 {
 	this.app = app;
 	
 	this.appDir = path.join(maintenanceConfig.appsPath, this.app.id);
 	this.packageJson = path.join(this.appDir, 'package.json');
 	this.eyePath = path.join(this.appDir, '.eye');
-	this.processName = `eye.${this.app.id}`;
+	this.processName = `${module.exports.EYE_PREFIX}${this.app.id}`;
 	this.zipPath = path.join(this.appDir, 'dist.zip');
 	
 	this.githubAuth = maintenanceConfig.repo.auth;
@@ -431,6 +433,6 @@ function AppMaintainer(maintenanceConfig, app)
 		});
 	}
 
-}).call(AppMaintainer.prototype);
+}).call(AppUpdater.prototype);
 
-module.exports = AppMaintainer;
+module.exports.AppUpdater = AppUpdater;

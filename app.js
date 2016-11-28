@@ -18,10 +18,10 @@
 		Deep clone config object before each run.						# done
 		Print time of next maintain action.								# done
 		Have a web interface to allow editing of the app config file.	# done
-		
-		Need to correctly handle removal of apps.
-			Remove from disk.
-			Remove from pm2.
+		Review AppsMaintainer code & reproduction of eye. shit			# done
+			Need to correctly handle removal of apps.					# done
+				Remove from disk.										# done
+				Remove from pm2.										# done
 		
 		put self in pm2 if no existing instance?
 		flesh out simplistic web gui
