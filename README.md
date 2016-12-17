@@ -25,7 +25,7 @@ Get the maintenance slice of the JSON configuration.
 | key | Query | The name of the maintenance field to set. |
 | value | Query | The value of the maintenance field to be set to. |
 
-Set a specific field in the maintenance slice of the JSON configuration.
+Set a specific field in the maintenance slice of the JSON configuration. Documentation on the maintenance element is given in Config.js.
 
 ### GET /config/apps
 
@@ -37,7 +37,7 @@ Get the apps slice of the JSON configuration, which dictates which apps are depl
 | --------- | ---- | ----------- |
 | - | Body | The app JSON to add or update. |
 
-Add or update an app. This will depend on if the passed app.id matches an existing app.id - if so, an update, else an add. The app will then be deployed on the next scheduled maintenance of eye. 
+Add or update an app. This will depend on if the passed app.id matches an existing app.id - if so, an update, else an add. The app will then be deployed on the next scheduled maintenance of eye. Documentation on the app element is given in Config.js.
 
 ### DELETE /config/apps/{id}
 
