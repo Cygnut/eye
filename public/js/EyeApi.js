@@ -1,63 +1,51 @@
-var EyeApi =
+function EyeApi($http)
 {
+    this.$http = $http;
+}
 
+EyeApi.prototype = 
+{
 	// This will calls next(null, data) on the result otherwise next(errorThrown) on error.
 	_get: function(next, path, qps) {
 		var urlString = path + (qps ? "?" + qps : "");
 		
-		$.ajax({
+		return this.$http({
+			method: "GET",
 			url: urlString,
-			dataType: "json"
-		})
-		.done(function(data, textStatus, jqXHR) {
-			next(null, data);
-		})
-		.fail(function(jqXHR, textStatus, errorThrown) {
-			next(errorThrown);
-		});
+		}).then(
+		function(data) { next(null, data); },
+		function(data) { next(1, data); });
 	},
 	
 	_post: function(next, url, data) {
-		$.ajax({
+		
+		return this.$http({
+			method: "POST",
 			url: url,
-			processData: false,	// don't turn data into a query string put on the url.
-			type: "POST",
 			data: data
-		})
-		.done(function(data, textStatus, jqXHR) {
-			next(null, data);
-		})
-		.fail(function(jqXHR, textStatus, errorThrown) {
-			next(errorThrown);
-		});
+		}).then(
+		function(data) { next(null, data); },
+		function(data) { next(1, data); });
 	},
 	
 	_put: function(next, url, data) {
-		$.ajax({
+		return this.$http({
+			method: "PUT",
 			url: url,
-			processData: false,	// don't turn data into a query string put on the url.
-			type: "PUT",
 			data: data
-		})
-		.done(function(data, textStatus, jqXHR) {
-			next(null, data);
-		})
-		.fail(function(jqXHR, textStatus, errorThrown) {
-			next(errorThrown);
-		});
+		}).then(
+		function(data) { next(null, data); },
+		function(data) { next(1, data); });
 	},
 	
 	_delete: function(next, url) {
-		$.ajax({
+		return this.$http({
+			method: "DELETE",
 			url: url,
-			type: "DELETE"
-		})
-		.done(function(data, textStatus, jqXHR) {
-			next(null, data);
-		})
-		.fail(function(jqXHR, textStatus, errorThrown) {
-			next(errorThrown);
-		});
+			data: data
+		}).then(
+		function(data) { next(null, data); },
+		function(data) { next(1, data); });
 	},
 	
 	
