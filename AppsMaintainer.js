@@ -88,8 +88,15 @@ function AppsMaintainer(maintenanceConfig)
 		return fs.readdir(dir, function(err, files)
 		{
 			if (err)
-				return next(`Failed to read the folder ${dir}.`);
-			
+			{
+				if (err.code === "ENOENT")
+				{
+					// Can't find the err directory - that's fine - just say there are no subdirectories.
+					files = [];
+				}
+				else return next(`Failed to read the folder ${dir} with error ${err}.`);
+			}
+				
 			async.map(
 				files, 
 				// Get stats on each directory entry in parallel.
