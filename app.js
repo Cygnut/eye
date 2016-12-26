@@ -52,27 +52,49 @@ require('./Logging').init();
 const DEFAULT_MAINTAIN_PERIOD = 60 * 60 * 1000;	// 1 hour.
 const DEFAULT_APPS_PATH = path.join(__dirname, '../', 'eye-apps');
 const DEFAULT_WEB_PORT = 3100;
+const DEFAULT_AUTH_TYPE = 'basic';
+const DEFAULT_AUTH_USERNAME = '<username>';
+const DEFAULT_AUTH_PASSWORD = '<password>';
 
 Config.load(function(err, config) {
 	if (err)
-		return log.error(`No configuration could be loaded from ${Config.path}`);
+	{
+		log.warn(`A .config file could be loaded from ${Config.path} - a default one will be created.`);
+		// Create an empty config object in this case - to be saved back to disc with defaults.
+		config = {};
+	}
 	
-	// TODO: Save a config file and exit if one not found / required settings not present.
+	// Ensure that the .config file has the correct structure, or is built from scratch if it does not exist.
+	function ensure(obj, field, def) {
+		obj[field] = obj[field] || def;
+	}
 	
-	config.maintenance = config.maintenance || {};
-	config.maintenance.period = config.maintenance.period || DEFAULT_MAINTAIN_PERIOD;
-	config.maintenance.appsPath = config.maintenance.appsPath || DEFAULT_APPS_PATH;
+	ensure(config, 'maintenance', {});
+	ensure(config.maintenance, 'period', DEFAULT_MAINTAIN_PERIOD);
+	ensure(config.maintenance, 'appsPath', DEFAULT_APPS_PATH);
+
+	ensure(config.maintenance, 'repo', {});
+	ensure(config.maintenance.repo, 'auth', {});
+	ensure(config.maintenance.repo.auth, 'type', DEFAULT_AUTH_TYPE);
+	ensure(config.maintenance.repo.auth, 'username', DEFAULT_AUTH_USERNAME);
+	ensure(config.maintenance.repo.auth, 'password', DEFAULT_AUTH_PASSWORD);
 	
-	config.web = config.web || {};
-	config.web.port = config.web.port || DEFAULT_WEB_PORT;
+	ensure(config, 'web', {});
+	ensure(config.web, 'port', DEFAULT_WEB_PORT);
 	
-	config.apps = config.apps || [];
-	// TODO: Save config back to disk here, to capture defaults.
+	ensure(config, 'apps', []);
 	
-	createWebInterface(config);
+	// Let's go, boys!
+	Config.save(config, function(err) {
+		runEye(config);
+	});
+});
+
+function runEye(config) {	
+	hostWebServer(config);
 	
 	startMaintenence(config);
-});
+}
 
 function startMaintenence(config)
 {
@@ -109,7 +131,7 @@ function startMaintenence(config)
 
 // TODO: Load from disk. Update on change from web interface.
 
-function createWebInterface(config)
+function hostWebServer(config)
 {
 	var app = express();
 	// Templating:
