@@ -1,3 +1,4 @@
+![eye icon](https://github.com/Cygnut/eye/blob/master/public/images/EyeIcon-100x100-Transparent.png)
 # eye
 Node.js application which automatically deploys and updates released GitHub node applications. In addition to having a JSON configuration file to configure how it should work, this can also be configured via its web interface.
 
