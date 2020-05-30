@@ -1,68 +1,68 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<script src="vendor/jquery-3.1.1.min.js"></script>
-	<script src="vendor/angular.min-1.5.7.js"></script>
-	
-	<!-- Angular model -->
-	<script src="js/EyeApi.js"></script>
-	<script src="js/app.js"></script>
-	<script src="js/controllers/maintenance.js"></script>
-	<script src="js/controllers/apps.js"></script>
-	
-	<link rel="shortcut icon" href="images/EyeIcon-64x64-Transparent.png" />
-	<link rel="stylesheet" href="vendor/w3.css">
-	
-	<title>Eye</title>
-	
-	<meta charset="UTF-8">
-	<meta name="description" content="Remote device administration and diagnostics.">
-	<meta name="keywords" content="Remote Access, Administration, Diagnostics">
-	<meta name="author" content="Cygnut">
-	
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	
+    <script src="vendor/jquery-3.1.1.min.js"></script>
+    <script src="vendor/angular.min-1.5.7.js"></script>
+    
+    <!-- Angular model -->
+    <script src="js/EyeApi.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/controllers/maintenance.js"></script>
+    <script src="js/controllers/apps.js"></script>
+    
+    <link rel="shortcut icon" href="images/EyeIcon-64x64-Transparent.png" />
+    <link rel="stylesheet" href="vendor/w3.css">
+    
+    <title>Eye</title>
+    
+    <meta charset="UTF-8">
+    <meta name="description" content="Remote device administration and diagnostics.">
+    <meta name="keywords" content="Remote Access, Administration, Diagnostics">
+    <meta name="author" content="Cygnut">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
 <style>
 header img {
-	margin: 10px;
-	width: 50px;
-	height: 50px;
-	float: left;
+    margin: 10px;
+    width: 50px;
+    height: 50px;
+    float: left;
 }
 
 article {
-	padding: 5px 5px 5px 5px;
-	margin: 95px 10px 45px 10px;
-	
-	border-width: 15px 15px 15px 15px;
-	border-style: solid;
-	border-color: white;
+    padding: 5px 5px 5px 5px;
+    margin: 95px 10px 45px 10px;
+    
+    border-width: 15px 15px 15px 15px;
+    border-style: solid;
+    border-color: white;
 }
 
 table, form input, p, h3, h4, h5 {
-	margin-left: 10px;
+    margin-left: 10px;
 }
 
 /* Apps accordion styling */
 .apps button.accordion {
-	background-color: #eee;
-	color: #444;
-	cursor: pointer;
-	padding: 18px;
-	width: 100%;
-	text-align: left;
-	border: none;
-	outline: none;
+    background-color: #eee;
+    color: #444;
+    cursor: pointer;
+    padding: 18px;
+    width: 100%;
+    text-align: left;
+    border: none;
+    outline: none;
 }
 
 .apps div.accordion {
-	border: #444 solid thin;
+    border: #444 solid thin;
 }
 
 .apps button.accordion:after {
-	content: '+'; /* Unicode character for "plus" sign (+) */
-	float: right;
-	margin-left: 5px;
+    content: '+'; /* Unicode character for "plus" sign (+) */
+    float: right;
+    margin-left: 5px;
 }
 
 .apps button.accordion.active:after {
@@ -70,40 +70,40 @@ table, form input, p, h3, h4, h5 {
 }
 
 .apps button.accordion.active, button.accordion:hover {
-	background-color: #ddd;
+    background-color: #ddd;
 }
 
 /* Base accordion panel style which can be overridden by show. */
 .apps div.panel {
-	padding: 0 18px;
-	background-color: white;
-	display: none;
+    padding: 0 18px;
+    background-color: white;
+    display: none;
 }
 
 /* Accordion panel style override when shown */
 .apps div.panel.show {
-	display: block;
+    display: block;
 }
 
 </style>
 <script>
 
 function accordionClick(b) {
-	
-	// Make it clear which accordion element we clicked on.
-	$(b).toggleClass("active");
-	// Drop the accordion content by changing the class.
-	$(b).next().toggleClass("show");
+    
+    // Make it clear which accordion element we clicked on.
+    $(b).toggleClass("active");
+    // Drop the accordion content by changing the class.
+    $(b).next().toggleClass("show");
 }
 
 function deleteInstalledApps()
 {
-	EyeApi.deleteInstalledApps(function(err, data) {
-		if (err)
-		{
-			// TODO: Display errors.
-		}
-	});
+    EyeApi.deleteInstalledApps(function(err, data) {
+        if (err)
+        {
+            // TODO: Display errors.
+        }
+    });
 }
 
 </script>
@@ -111,41 +111,41 @@ function deleteInstalledApps()
 <body ng-app="eye">
 
 <header class="header w3-top w3-container w3-blue">
-	<img src="images/EyeIcon-100x100-Transparent.png" />
-	<h1>Eye</h1>
+    <img src="images/EyeIcon-100x100-Transparent.png" />
+    <h1>Eye</h1>
 </header>
 
 <article>
 
 <section class="apps" ng-controller="apps">
-	<h2>Apps Configuration</h2>
-	<div class="accordion" ng-repeat="a in apps">
-		<button class="accordion" onclick="accordionClick(this)">{{ a.id }}</button>
-		<div class="panel">
-			<p>Deployed from the repository {{ a.repo.owner }}/{{ a.repo.name }}.</p>
-		</div>
-	</div>
+    <h2>Apps Configuration</h2>
+    <div class="accordion" ng-repeat="a in apps">
+        <button class="accordion" onclick="accordionClick(this)">{{ a.id }}</button>
+        <div class="panel">
+            <p>Deployed from the repository {{ a.repo.owner }}/{{ a.repo.name }}.</p>
+        </div>
+    </div>
 </section>
 
 <section ng-controller="maintenance">
-	<h2>Maintenance Configuration</h2>
-	<table class="w3-table-all">
-		<tr>
-			<th>Name</th>
-			<th>Value</th>
-		</tr>
-		<tr ng-repeat="(key, value) in items">
-			<td>{{key}}</td>
-			<td>{{ value }}</td>
-		</tr>
-	</table>
+    <h2>Maintenance Configuration</h2>
+    <table class="w3-table-all">
+        <tr>
+            <th>Name</th>
+            <th>Value</th>
+        </tr>
+        <tr ng-repeat="(key, value) in items">
+            <td>{{key}}</td>
+            <td>{{ value }}</td>
+        </tr>
+    </table>
 </section>
 
 </section id="utilities">
 <h2>Utilities</h2>
 <form>
-	<h5>Delete all apps deployed by eye? They will be redeployed at the next interval.</h5>
-	<input type="button" class="w3-btn" onclick="deleteInstalledApps()" value="Delete Installed Apps"></input>
+    <h5>Delete all apps deployed by eye? They will be redeployed at the next interval.</h5>
+    <input type="button" class="w3-btn" onclick="deleteInstalledApps()" value="Delete Installed Apps"></input>
 </form>
 </section>
 
